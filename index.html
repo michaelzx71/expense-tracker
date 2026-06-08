@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>报销记录管理</title>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #fff;
+    --text: #2d3436;
+    --muted: #636e72;
+    --border: #dfe6e9;
+    --primary: #0984e3;
+    --primary-light: #e8f4fd;
+    --danger: #d63031;
+    --danger-light: #ffeaea;
+    --success: #00b894;
+    --success-light: #e6f9f4;
+    --warning: #fdcb6e;
+    --warning-light: #fff9e6;
+    --shadow: 0 2px 12px rgba(0,0,0,.06);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0984e3, #6c5ce7);
+    color: #fff;
+    padding: 24px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  .header-actions { display: flex; gap: 10px; }
+
+  /* Layout */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--card); border-radius: var(--radius); padding: 20px 24px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px;
+  }
+  .stat-card .label { font-size: 13px; color: var(--muted); }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .value.pending { color: var(--warning); }
+  .stat-card .value.approved { color: var(--primary); }
+  .stat-card .value.reimbursed { color: var(--success); }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 16px;
+  }
+  .toolbar input, .toolbar select {
+    padding: 9px 14px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; outline: none; transition: border-color .2s;
+  }
+  .toolbar input:focus, .toolbar select:focus { border-color: var(--primary); }
+  .toolbar input { flex: 1; min-width: 200px; }
+  .spacer { flex: 1; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: all .2s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: #0773c5; }
+  .btn-outline { background: #fff; color: var(--primary); border: 2px solid var(--primary); }
+  .btn-outline:hover { background: var(--primary-light); }
+  .btn-danger { background: #fff; color: var(--danger); border: 2px solid var(--danger); }
+  .btn-danger:hover { background: var(--danger-light); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+  .btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 4px; }
+
+  /* Table */
+  .table-wrapper {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead { background: #f8f9fb; }
+  th {
+    padding: 14px 16px; text-align: left; font-weight: 700; color: var(--muted);
+    font-size: 12px; text-transform: uppercase; letter-spacing: .5px;
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  th:hover { color: var(--primary); }
+  th .sort-arrow { margin-left: 4px; font-size: 10px; }
+  td { padding: 12px 16px; border-top: 1px solid var(--border); }
+  tr:hover td { background: #f8f9fb; }
+
+  /* Badge */
+  .badge {
+    display: inline-block; padding: 4px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-pending { background: var(--warning-light); color: #b8860b; }
+  .badge-submitted { background: #e8f4fd; color: var(--primary); }
+  .badge-approved { background: var(--success-light); color: var(--success); }
+  .badge-rejected { background: var(--danger-light); color: var(--danger); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.4); z-index: 1000;
+    justify-content: center; align-items: flex-start; padding-top: 60px;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--card); border-radius: var(--radius); padding: 28px;
+    width: 520px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,.15);
+    animation: slideIn .2s ease;
+  }
+  @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal h2 { margin-bottom: 20px; font-size: 18px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; outline: none; transition: border-color .2s; font-family: inherit;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+  @media (max-width: 640px) {
+    .header { padding: 16px 20px; }
+    .header h1 { font-size: 18px; }
+    .container { padding: 12px; }
+    th, td { padding: 8px 10px; font-size: 12px; }
+    .form-row { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 报销记录管理</h1>
+  <div class="header-actions">
+    <button class="btn btn-outline" style="color:#fff;border-color:#fff;" onclick="exportCSV()">📥 导出 CSV</button>
+    <button class="btn" style="background:#fff;color:#0984e3;" onclick="openModal()">＋ 新增报销</button>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Stats -->
+  <div class="stats" id="stats"></div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="🔍 搜索描述、类别..." oninput="render()">
+    <select id="filterStatus" onchange="render()">
+      <option value="">全部状态</option>
+      <option value="pending">待提交</option>
+      <option value="submitted">已提交</option>
+      <option value="approved">已审批</option>
+      <option value="rejected">已驳回</option>
+    </select>
+    <select id="filterCategory" onchange="render()">
+      <option value="">全部分类</option>
+      <option value="差旅费">差旅费</option>
+      <option value="办公用品">办公用品</option>
+      <option value="招待费">招待费</option>
+      <option value="交通费">交通费</option>
+      <option value="通讯费">通讯费</option>
+      <option value="其他">其他</option>
+    </select>
+    <input type="month" id="filterMonth" onchange="render()" style="min-width:150px;">
+    <span id="recordCount" style="font-size:13px;color:var(--muted);white-space:nowrap;"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('date')">日期 <span class="sort-arrow" id="sort-date"></span></th>
+          <th onclick="sortBy('category')">分类 <span class="sort-arrow" id="sort-category"></span></th>
+          <th>描述</th>
+          <th onclick="sortBy('amount')">金额 <span class="sort-arrow" id="sort-amount"></span></th>
+          <th onclick="sortBy('status')">状态 <span class="sort-arrow" id="sort-status"></span></th>
+          <th style="width:100px;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon">📭</div>
+      <p>暂无报销记录</p>
+      <p style="font-size:13px;">点击「新增报销」开始记录</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">新增报销记录</h2>
+    <form id="expenseForm" onsubmit="saveRecord(event)">
+      <input type="hidden" id="editId">
+      <div class="form-row">
+        <div class="form-group">
+          <label>日期 *</label>
+          <input type="date" id="formDate" required>
+        </div>
+        <div class="form-group">
+          <label>金额 (元) *</label>
+          <input type="number" id="formAmount" placeholder="0.00" step="0.01" min="0.01" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>分类 *</label>
+          <select id="formCategory" required>
+            <option value="">请选择</option>
+            <option value="差旅费">差旅费</option>
+            <option value="办公用品">办公用品</option>
+            <option value="招待费">招待费</option>
+            <option value="交通费">交通费</option>
+            <option value="通讯费">通讯费</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select id="formStatus">
+            <option value="pending">待提交</option>
+            <option value="submitted">已提交</option>
+            <option value="approved">已审批</option>
+            <option value="rejected">已驳回</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>描述</label>
+        <textarea id="formDesc" rows="2" placeholder="报销事由说明..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <input type="text" id="formNote" placeholder="可选的备注信息">
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'expense_records';
+let records = [];
+let sortField = 'date';
+let sortAsc = false;
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    records = raw ? JSON.parse(raw) : [];
+  } catch { records = []; }
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+function generateId() {
+  return 'exp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+// ── Render ──────────────────────────────────────────────────────
+
+function getFilteredRecords() {
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const status = document.getElementById('filterStatus')?.value || '';
+  const category = document.getElementById('filterCategory')?.value || '';
+  const month = document.getElementById('filterMonth')?.value || '';
+
+  return records.filter(r => {
+    if (search && !(r.desc||'').toLowerCase().includes(search) && !(r.category||'').toLowerCase().includes(search) && !(r.note||'').toLowerCase().includes(search)) return false;
+    if (status && r.status !== status) return false;
+    if (category && r.category !== category) return false;
+    if (month && !(r.date || '').startsWith(month)) return false;
+    return true;
+  }).sort((a, b) => {
+    let va, vb;
+    if (sortField === 'date') { va = a.date || ''; vb = b.date || ''; }
+    else if (sortField === 'amount') { va = a.amount || 0; vb = b.amount || 0; }
+    else if (sortField === 'category') { va = a.category || ''; vb = b.category || ''; }
+    else if (sortField === 'status') { va = a.status || ''; vb = b.status || ''; }
+    else { va = a.date || ''; vb = b.date || ''; }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+}
+
+function render() {
+  const filtered = getFilteredRecords();
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyState');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = filtered.map(r => {
+      const statusLabels = { pending: '待提交', submitted: '已提交', approved: '已审批', rejected: '已驳回' };
+      const statusClass = { pending: 'pending', submitted: 'submitted', approved: 'approved', rejected: 'rejected' };
+      return `<tr>
+        <td>${r.date || '-'}</td>
+        <td>${r.category || '-'}</td>
+        <td>${esc(r.desc || '-')}</td>
+        <td style="font-weight:700;font-variant-numeric:tabular-nums;">¥${(r.amount||0).toFixed(2)}</td>
+        <td><span class="badge badge-${statusClass[r.status] || 'pending'}">${statusLabels[r.status] || r.status}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="editRecord('${r.id}')" title="编辑">✎</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')" title="删除">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // stats
+  const total = records.length;
+  const totalAmount = records.reduce((s,r) => s + (r.amount||0), 0);
+  const pending = records.filter(r => r.status === 'pending');
+  const submitted = records.filter(r => r.status === 'submitted');
+  const approved = records.filter(r => r.status === 'approved');
+  const pendingAmount = pending.reduce((s,r) => s + (r.amount||0), 0);
+  const approvedAmount = approved.reduce((s,r) => s + (r.amount||0), 0);
+  const reimbursedAmount = records.filter(r => r.status === 'approved').reduce((s,r) => s + (r.amount||0), 0);
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><span class="label">总记录数</span><span class="value">${total}</span></div>
+    <div class="stat-card"><span class="label">总金额</span><span class="value">¥${totalAmount.toFixed(2)}</span></div>
+    <div class="stat-card"><span class="label">待处理</span><span class="value pending">${pending.length + submitted.length} 笔</span><span style="font-size:13px;color:var(--muted);">¥${pendingAmount.toFixed(2)}</span></div>
+    <div class="stat-card"><span class="label">已审批</span><span class="value approved">${approved.length} 笔</span><span style="font-size:13px;color:var(--muted);">¥${approvedAmount.toFixed(2)}</span></div>
+  `;
+  document.getElementById('recordCount').textContent = `共 ${filtered.length} 条`;
+  updateSortArrows();
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Sort ────────────────────────────────────────────────────────
+
+function sortBy(field) {
+  if (sortField === field) sortAsc = !sortAsc;
+  else { sortField = field; sortAsc = false; }
+  render();
+}
+
+function updateSortArrows() {
+  ['date','category','amount','status'].forEach(f => {
+    const el = document.getElementById('sort-' + f);
+    if (!el) return;
+    if (f === sortField) el.textContent = sortAsc ? '▲' : '▼';
+    else el.textContent = '';
+  });
+}
+
+// ── Modal ───────────────────────────────────────────────────────
+
+function openModal(record) {
+  document.getElementById('editId').value = record ? record.id : '';
+  document.getElementById('modalTitle').textContent = record ? '编辑报销记录' : '新增报销记录';
+  document.getElementById('formDate').value = record ? record.date : new Date().toISOString().slice(0,10);
+  document.getElementById('formAmount').value = record ? record.amount : '';
+  document.getElementById('formCategory').value = record ? record.category : '';
+  document.getElementById('formStatus').value = record ? record.status : 'pending';
+  document.getElementById('formDesc').value = record ? (record.desc || '') : '';
+  document.getElementById('formNote').value = record ? (record.note || '') : '';
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  document.getElementById('expenseForm').reset();
+}
+
+function saveRecord(e) {
+  e.preventDefault();
+  const id = document.getElementById('editId').value;
+  const record = {
+    id: id || generateId(),
+    date: document.getElementById('formDate').value,
+    amount: parseFloat(document.getElementById('formAmount').value),
+    category: document.getElementById('formCategory').value,
+    status: document.getElementById('formStatus').value,
+    desc: document.getElementById('formDesc').value.trim(),
+    note: document.getElementById('formNote').value.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  if (!id) record.createdAt = new Date().toISOString();
+
+  if (id) {
+    const idx = records.findIndex(r => r.id === id);
+    if (idx >= 0) records[idx] = record;
+  } else {
+    records.push(record);
+  }
+  save();
+  closeModal();
+  render();
+}
+
+function editRecord(id) {
+  const r = records.find(r => r.id === id);
+  if (r) openModal(r);
+}
+
+function deleteRecord(id) {
+  if (!confirm('确定删除这条记录吗？此操作不可恢复。')) return;
+  records = records.filter(r => r.id !== id);
+  save();
+  render();
+}
+
+// ── Export ──────────────────────────────────────────────────────
+
+function exportCSV() {
+  const filtered = getFilteredRecords();
+  if (filtered.length === 0) { alert('没有可导出的记录'); return; }
+  const statusLabels = { pending: '待提交', submitted: '已提交', approved: '已审批', rejected: '已驳回' };
+  const header = ['日期','分类','描述','金额','状态','备注','创建时间','更新时间'];
+  const rows = filtered.map(r => [
+    r.date || '',
+    r.category || '',
+    `"${(r.desc||'').replace(/"/g,'""')}"`,
+    (r.amount||0).toFixed(2),
+    statusLabels[r.status] || r.status,
+    `"${(r.note||'').replace(/"/g,'""')}"`,
+    r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '',
+    r.updatedAt ? new Date(r.updatedAt).toLocaleString('zh-CN') : '',
+  ]);
+  const csv = '\uFEFF' + header.join(',') + '\n' + rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `报销记录_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Init ────────────────────────────────────────────────────────
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+load();
+render();
+</script>
+</body>
+</html>
