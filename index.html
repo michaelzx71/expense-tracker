@@ -156,8 +156,11 @@
 <div class="header">
   <h1>📋 报销记录管理</h1>
   <div class="header-actions">
+    <button class="btn btn-outline" style="color:#fff;border-color:#fff;" onclick="exportJSON()">💾 备份数据</button>
+    <button class="btn btn-outline" style="color:#fff;border-color:#fff;" onclick="document.getElementById('importInput').click()">📂 恢复数据</button>
     <button class="btn btn-outline" style="color:#fff;border-color:#fff;" onclick="exportCSV()">📥 导出 CSV</button>
     <button class="btn" style="background:#fff;color:#0984e3;" onclick="openModal()">＋ 新增报销</button>
+    <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
   </div>
 </div>
 
@@ -439,6 +442,50 @@ function deleteRecord(id) {
   records = records.filter(r => r.id !== id);
   save();
   render();
+}
+
+// ── Backup / Restore ────────────────────────────────────────────
+
+function exportJSON() {
+  if (records.length === 0) { alert('没有可备份的数据'); return; }
+  const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `报销记录_备份_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data) || data.length === 0) {
+        alert('文件格式不正确，请选择有效的备份文件。');
+        return;
+      }
+      for (const r of data) {
+        if (!r.id || !r.date || r.amount === undefined) {
+          alert('数据格式异常，请确认是导出的备份文件。');
+          return;
+        }
+      }
+      if (confirm(`即将导入 ${data.length} 条报销记录。\n\n当前已有 ${records.length} 条记录。\n\n选择「确定」替换所有数据\n选择「取消」跳过此操作`)) {
+        records = data;
+        save();
+        render();
+        alert(`✅ 成功导入 ${data.length} 条报销记录！`);
+      }
+    } catch {
+      alert('文件解析失败，请选择有效的 JSON 备份文件。');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
 }
 
 // ── Export ──────────────────────────────────────────────────────
